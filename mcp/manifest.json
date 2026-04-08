@@ -1,0 +1,65 @@
+{
+  "manifest_version": "0.2",
+  "name": "AppControl",
+  "display_name": "AppControl",
+  "version": "1.0.0",
+  "description": "AppControl MCP is a local MCP server that connects Claude Desktop to your Windows PC’s historical task manager data. Ask what apps used CPU, GPU, RAM, or disk, what caused slowdowns, and which apps accessed your webcam, microphone, or location.",
+  "author": {
+    "name": "AppControl Labs",
+    "email": "helpdesk@appcontrol.com",
+    "url": "https://github.com/AppControlLabs/appcontrol-mcp-go"
+  },
+  "homepage": "https://www.appcontrol.com",
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "appcontrol-mcp.exe",
+    "mcp_config": {
+      "command": "${__dirname}/appcontrol-mcp.exe"
+    }
+  },
+  "tools": [
+    {
+      "name": "list_binaries",
+      "description": "List tracked binaries with filters — unsigned-only, currently-running, first-seen-after date, path substring, or publisher ID."
+    },
+    {
+      "name": "get_binary",
+      "description": "Get detailed info for one or more binaries by ID (batch with comma-separated IDs) — path, hash, signature, publisher, first-seen time, and running status."
+    },
+    {
+      "name": "list_processes",
+      "description": "List currently running processes with binary ID, name, path, PID, and start time. Filterable by fields."
+    },
+    {
+      "name": "list_publishers",
+      "description": "List code-signing publishers (certificate identities) — name, country, and linked binary/rule counts."
+    },
+    {
+      "name": "list_rules",
+      "description": "List quarantine rules — blocked binaries and publishers with rule type and creation time."
+    },
+    {
+      "name": "query_history",
+      "description": "Query security event history — binary first-seen events, quarantine blocks, alerts, and process starts. Filterable by event type, time range, and binary ID."
+    },
+    {
+      "name": "get_stats",
+      "description": "Get service stats, current timestamp, and uptime/idle intervals showing when the PC was on, off, or idle. Call first to orient before using other tools."
+    },
+    {
+      "name": "get_monitoring",
+      "description": "Get time-series resource metrics — system-wide (CPU, memory, disk, GPU, temps) or per-binary with top-N/min-value filtering to find heavy resource consumers."
+    },
+    {
+      "name": "get_hardware",
+      "description": "Get CPU, GPU, and temperature sensor info for the monitored system."
+    }
+  ],
+  "keywords": [
+    "windows", "privacy", "temperature-monitoring", "windows-desktop", "task-manager", "cpu-monitoring",
+    "system-monitoring", "process-monitoring", "privacy-tools", "gpu-monitoring", "resource-monitor",
+    "historical-monitoring"
+  ],
+  "license": "MIT"
+}

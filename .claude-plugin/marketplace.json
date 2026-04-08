@@ -1,0 +1,15 @@
+{
+  "name": "appcontrollabs",
+  "owner": {
+    "name": "AppControl Labs",
+    "email": "opensource@appcontrol.com"
+  },
+  "plugins": [
+    {
+      "name": "appcontrol-mcp",
+      "description": "Connect Claude to your Windows PC's AppControl monitor — query running processes, tracked binaries, resource usage history, security events, and idle/uptime intervals.",
+      "source": "./plugin/appcontrol-mcp",
+      "category": "security"
+    }
+  ]
+}

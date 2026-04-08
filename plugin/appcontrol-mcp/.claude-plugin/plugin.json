@@ -1,0 +1,28 @@
+{
+  "name": "appcontrol-mcp",
+  "version": "1.0.0",
+  "description": "Connect Claude to your Windows PC's AppControl monitor — query running processes, tracked binaries, resource usage history, security events, and idle/uptime intervals.",
+  "author": {
+    "name": "AppControl Labs",
+    "email": "helpdesk@appcontrol.com",
+    "url": "https://www.appcontrol.com"
+  },
+  "homepage": "https://github.com/AppControlLabs/appcontrol-mcp-go",
+  "repository": "https://github.com/AppControlLabs/appcontrol-mcp-go",
+  "license": "MIT",
+  "keywords": [
+    "windows",
+    "monitoring",
+    "security",
+    "task-manager",
+    "process-monitoring",
+    "system-monitoring",
+    "mcp"
+  ],
+  "platforms": ["win32"],
+  "mcpServers": {
+    "appcontrol": {
+      "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/start.ps1\""
+    }
+  }
+}

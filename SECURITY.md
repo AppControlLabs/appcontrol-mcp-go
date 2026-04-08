@@ -1,0 +1,1 @@
+If you believe you have identified a security issue, please submit your report to our team using any of the methods outlined [here](https://www.appcontrol.com/security/).

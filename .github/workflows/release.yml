@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: [self-hosted, windows, x64]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Extract version from tag
+      id: version
+      shell: pwsh
+      run: |
+        $tag = "${{ github.event.release.tag_name }}"
+        $version = $tag -replace '^v', ''
+        $winresVersion = "$version.0"
+        echo "TAG=$tag" >> $env:GITHUB_OUTPUT
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        echo "WINRES_VERSION=$winresVersion" >> $env:GITHUB_OUTPUT
+
+    - name: Update winres version
+      shell: pwsh
+      run: |
+        $content = Get-Content cmd/winres/winres.json -Raw
+        $content = $content -replace '1\.0\.0\.0', '${{ steps.version.outputs.WINRES_VERSION }}'
+        Set-Content cmd/winres/winres.json $content
+
+    - name: Build
+      shell: pwsh
+      run: |
+        cd ./cmd/
+        go mod tidy
+        go-winres make
+        del rsrc_windows_386.syso
+        go build -ldflags "-s -w" -o ../appcontrol-mcp.exe .
+
+    - name: Sign
+      shell: pwsh
+      run: |
+        signtool.exe sign /fd sha256 /sha1 ${{ secrets.SIGNING_CERT_SHA1 }} /tr http://timestamp.globalsign.com/tsa/r6advanced1 /td sha256 /as /v appcontrol-mcp.exe
+
+    - name: Prepare package
+      shell: pwsh
+      run: |
+        Copy-Item appcontrol-mcp.exe mcp/
+
+        $manifest = Get-Content mcp/manifest.json | ConvertFrom-Json
+        $manifest.version = "${{ steps.version.outputs.VERSION }}"
+        $manifest | ConvertTo-Json -Depth 10 | Set-Content mcp/manifest.json
+
+    - name: Pack
+      shell: pwsh
+      run: |
+        mcpb pack mcp
+
+    - name: Rename package
+      shell: pwsh
+      run: |
+        $mcpbFile = Get-ChildItem *.mcpb | Select-Object -First 1
+        Rename-Item $mcpbFile.FullName "appcontrol-${{ steps.version.outputs.TAG }}.mcpb"
+
+    - name: Upload release assets
+      shell: pwsh
+      run: |
+        gh release upload "${{ steps.version.outputs.TAG }}" "appcontrol-${{ steps.version.outputs.TAG }}.mcpb" "appcontrol-mcp.exe" --clobber
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
