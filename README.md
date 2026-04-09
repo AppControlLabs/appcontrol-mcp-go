@@ -203,3 +203,5 @@ go build -ldflags "-s -w" -o appcontrol-mcp.exe .
 MIT
 
 This repository contains the open MCP server for AppControl. The AppControl desktop application remains proprietary.
+
+*Claude is a trademark of Anthropic, PBC. Cursor, Windsurf, Gemini, VS Code, Copilot, and OpenAI Codex are trademarks of their respective owners. AppControl is not affiliated with or endorsed by any of these companies.*
