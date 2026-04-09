@@ -64,11 +64,11 @@ jobs:
       shell: pwsh
       run: |
         $mcpbFile = Get-ChildItem *.mcpb | Select-Object -First 1
-        Rename-Item $mcpbFile.FullName "appcontrol-${{ steps.version.outputs.TAG }}.mcpb"
+        Rename-Item $mcpbFile.FullName "appcontrol.mcpb"
 
     - name: Upload release assets
       shell: pwsh
       run: |
-        gh release upload "${{ steps.version.outputs.TAG }}" "appcontrol-${{ steps.version.outputs.TAG }}.mcpb" "appcontrol-mcp.exe" --clobber
+        gh release upload "${{ steps.version.outputs.TAG }}" "appcontrol.mcpb" "appcontrol-mcp.exe" --clobber
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
