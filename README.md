@@ -25,7 +25,7 @@ There are two ways to install the server: as an **MCPB package** (recommended fo
 
 ### Option A — MCPB Package (Claude Desktop)
 
-1. Download `appcontrol-vX.X.X.mcpb` from the [latest release](https://github.com/AppControlLabs/appcontrol-mcp-go/releases/latest).
+1. Download `appcontrol.mcpb` from the [latest release](https://github.com/AppControlLabs/appcontrol-mcp-go/releases/latest).
 2. Open Claude Desktop app, go to Settings -> Extensions -> Advanced Settings and click "Install Extension". Choose your newly downloaded `.mcpb` file — Claude Desktop will install it automatically.
 3. Restart Claude Desktop app by right-clicking the Claude tray icon and selecting "Quit" then start it again.
 
