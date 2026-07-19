@@ -49,6 +49,20 @@ The list_rules tool returns only active quarantine rules. If no rules are return
 	`Service (Windows service), System (NT AUTHORITY\SYSTEM), Debugged (attached debugger), ` +
 	`Suspended, Protected, Subsystem (WSL/Pico), Immersive (UWP/Store app).
 
+**Services**: Windows services are background programs managed by the Service ` +
+	`Control Manager. The list_services tool returns the full catalog — running AND ` +
+	`stopped. Key fields: start_type (Auto/Boot/System run without a logged-in user, ` +
+	`making them persistence-relevant; Demand = on request; Disabled), is_driver ` +
+	`(kernel-mode service, highest privilege — corresponds to DriverServiceAdded events), ` +
+	`svchost_hosted (a DLL service loaded into a shared svchost.exe host), state / running ` +
+	`(the authoritative Service Control Manager state; running == state is Running and is ` +
+	`accurate for kernel drivers too — a running driver reports running=true with no pids), ` +
+	`and, for user-mode services with a live host, pids / binary_ids identifying the hosting ` +
+	`process and binary. To see the ` +
+	`services a specific running process hosts, call list_processes with flags="Service" ` +
+	`and fields including "services". Running processes also expose os_parent_process_id ` +
+	`(the raw OS parent PID, uncollapsed) as an opt-in field.
+
 **Events**: The history log records security-relevant activity:
 - ` + "`NewBinarySeen`" + ` -- a previously unknown executable appeared (investigate these!)
 - ` + "`BlockProcess`" + ` -- a binary was denied execution by a quarantine rule
@@ -220,7 +234,7 @@ func getBinary(_ context.Context, _ *mcp.CallToolRequest, input GetBinaryInput) 
 type ListProcessesInput struct {
 	Limit        int    `json:"limit,omitempty" jsonschema:"Maximum number of results (1-200, default 100). Use offset to paginate."`
 	Offset       int    `json:"offset,omitempty" jsonschema:"Number of results to skip (default 0)."`
-	Fields       string `json:"fields,omitempty" jsonschema:"Comma-separated list of fields to include. When omitted all fields are returned. Available: name, username, start_time, elevation, flags, parent_binary_id, parent_process_id."`
+	Fields       string `json:"fields,omitempty" jsonschema:"Comma-separated list of fields to include. When omitted, all fields EXCEPT 'services' are returned. Available: name, username, start_time, elevation, flags, parent_binary_id, parent_process_id, os_parent_process_id, services. 'services' (the Windows services hosted by the process) is opt-in — include it explicitly to attach it; it is never in the default response. 'os_parent_process_id' is the raw OS parent PID (uncollapsed)."`
 	Search       string `json:"search,omitempty" jsonschema:"Case-insensitive substring search across name, username, and command line. Useful for finding processes by path fragment (e.g. 'Temp', 'Downloads') or executable name."`
 	Username     string `json:"username,omitempty" jsonschema:"Case-insensitive substring match on username. e.g. 'SYSTEM' matches 'NT AUTHORITY\\SYSTEM', 'Alex' matches 'DESKTOP-X\\Alex'."`
 	BinaryID     int    `json:"binary_id,omitempty" jsonschema:"Return only processes for this binary ID. Useful to find all running instances of a specific application."`
@@ -233,7 +247,9 @@ const listProcessesDesc = `List currently running processes with binary ID, name
 
 Returns running processes with their binary ID, name, username, start time, elevation type, and flags. process_id and binary_id are always returned. Use binary_id to cross-reference with list_binaries/get_binary.
 
-Flags is an array of strings: Elevated, Service, System, Debugged, Suspended, Protected, Subsystem, Immersive.`
+Flags is an array of strings: Elevated, Service, System, Debugged, Suspended, Protected, Subsystem, Immersive.
+
+To find service-host processes and see which services they host, filter flags="Service" and set fields to include "services" (e.g. fields="name,services"). Each services entry has name, display_name, description, path, and start_type. The "services" field is opt-in — it is only attached when you list it in fields. The whole system service catalog (including stopped services) is available via the list_services tool.`
 
 func listProcesses(_ context.Context, _ *mcp.CallToolRequest, input ListProcessesInput) (*mcp.CallToolResult, any, error) {
 	c, err := getClient()
@@ -477,6 +493,53 @@ func getHardware(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.Ca
 }
 
 // ---------------------------------------------------------------------------
+// Tool: list_services
+// ---------------------------------------------------------------------------
+
+type ListServicesInput struct {
+	Search      string `json:"search,omitempty" jsonschema:"Case-insensitive substring match on service name, display name, or description. E.g. 'update', 'defender', 'sql'."`
+	RunningOnly bool   `json:"running_only,omitempty" jsonschema:"If true, return only services the Service Control Manager reports as Running (state=Running). This correctly includes running kernel drivers, which have no user-mode host process (and therefore no pids)."`
+	DriversOnly bool   `json:"drivers_only,omitempty" jsonschema:"If true, return only kernel driver services (is_driver=true). Drivers run in kernel mode with the highest privilege."`
+	StartType   string `json:"start_type,omitempty" jsonschema:"Filter by start type. One of: Auto, Demand, Disabled, Boot, System (case-insensitive). Auto/Boot/System start without a logged-in user and are persistence-relevant."`
+	Limit       int    `json:"limit,omitempty" jsonschema:"Maximum number of results (1-200, default 100). Use offset to paginate."`
+	Offset      int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination (default 0)."`
+}
+
+const listServicesDesc = `List Windows services from the system-wide catalog — running AND stopped. Filterable by name/description, running state, driver-only, and start type.
+
+Each service includes: name, display_name, is_driver, svchost_hosted, start_type (Auto/Demand/Disabled/Boot/System/Unknown), state (Stopped/StartPending/StopPending/Running/ContinuePending/PausePending/Paused/Unknown), and running. description and path may be omitted when unknown. When a service has a live host process, it also includes pids and (when resolvable) the hosting binary_ids plus an inline binary summary.
+
+running reflects the actual Service Control Manager state (running == state is Running), so it is accurate for kernel drivers too: a running driver reports running=true with an empty pids list (drivers have no host process). pids/binary_ids are only present for user-mode services that have a live host process.
+
+Security relevance:
+- start_type Auto/Boot/System = the service runs without a logged-in user, a common persistence mechanism. Newly-appeared auto-start services warrant scrutiny.
+- is_driver services are kernel-mode (highest privilege) and correspond to DriverServiceAdded events in query_history.
+- Service binaries in user-writable or unusual paths, and unsigned service binaries, are high-risk. Cross-reference a running service's binary_id with get_binary for signature/path/first-seen.
+- svchost_hosted services are DLLs loaded into a shared svchost.exe host process.
+
+To see which services a specific running process hosts, use list_processes with flags="Service" and fields including "services".`
+
+func listServices(_ context.Context, _ *mcp.CallToolRequest, input ListServicesInput) (*mcp.CallToolResult, any, error) {
+	c, err := getClient()
+	if err != nil {
+		return errResult(err)
+	}
+	params := url.Values{}
+	params.Set("offset", strconv.Itoa(input.Offset))
+	params.Set("limit", strconv.Itoa(clampLimit(input.Limit)))
+	setStr(params, "search", input.Search)
+	setBool(params, "running_only", input.RunningOnly)
+	setBool(params, "drivers_only", input.DriversOnly)
+	setStr(params, "start_type", input.StartType)
+
+	body, err := c.Get("/api/v1/services", params)
+	if err != nil {
+		return errResult(err)
+	}
+	return textResult(body)
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -541,6 +604,12 @@ func main() {
 		Description: getHardwareDesc,
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 	}, getHardware)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_services",
+		Description: listServicesDesc,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+	}, listServices)
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)
