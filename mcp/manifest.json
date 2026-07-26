@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "AppControl",
   "display_name": "AppControl",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AppControl MCP is a local MCP server that connects Claude Desktop to your Windows PC’s historical task manager data. Ask what apps used CPU, GPU, RAM, or disk, what caused slowdowns, and which apps accessed your webcam, microphone, or location.",
   "author": {
     "name": "AppControl Labs",
@@ -54,6 +54,10 @@
     {
       "name": "get_hardware",
       "description": "Get CPU, GPU, and temperature sensor info for the monitored system."
+    },
+    {
+      "name": "list_services",
+      "description": "List Windows services from the system-wide catalog — running AND stopped. Filterable by name/description, running state, driver-only, and start type."
     }
   ],
   "keywords": [
