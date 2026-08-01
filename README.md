@@ -186,8 +186,8 @@ The MCP server exposes 9 read-only tools:
 | `list_publishers` | List code-signing publishers (certificate identities) — name, country, and linked binary/rule counts. |
 | `list_rules` | List quarantine rules — blocked binaries and publishers with rule type and creation time. |
 | `query_history` | Query security event history — binary first-seen events, quarantine blocks, alerts, and process starts. Filterable by event type, time range, and binary ID. |
-| `get_monitoring` | Get time-series resource metrics — system-wide (CPU, memory, disk, GPU, temps) or per-binary with top-N/min-value filtering to find heavy resource consumers. |
-| `get_hardware` | Get CPU, GPU, and temperature sensor info for the monitored system. |
+| `get_monitoring` | Get time-series resource metrics — system-wide (CPU, memory, disk, GPU, network, temps) or per-binary with top-N/min-value filtering to find heavy resource consumers. |
+| `get_hardware` | Get CPU, GPU, network adapter, and temperature sensor info for the monitored system. |
 
 All tools are **read-only**. The MCP server cannot modify rules, block/allow binaries, or change any service configuration.
 

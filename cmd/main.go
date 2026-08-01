@@ -96,6 +96,16 @@ All tools in this MCP server are **read-only**. You cannot modify rules, block/a
 	`binaries, or change any configuration through this interface. This is intentional ` +
 	`for safety.
 
+**Network metrics**: get_monitoring reports network bytes both system-wide and ` +
+	`per-binary, but the two are measured at different layers and are NOT expected to ` +
+	`add up. System figures are NIC-level octets including protocol framing and traffic ` +
+	`with no owning process; per-binary figures are TCP/UDP payload attributed to a ` +
+	`process. The system total is normally larger than the sum of per-binary values on ` +
+	`every healthy machine. Do not report that gap as unaccounted traffic, a hidden ` +
+	`process, or exfiltration. When net_app_available is false, per-binary network ` +
+	`values are UNKNOWN rather than zero — treat them as missing data, not as evidence ` +
+	`that an application used no network.
+
 ## Important context for the AI assistant
 
 AppControl is a security monitoring API. You have NO visual or direct access to the user's computer.
@@ -434,17 +444,27 @@ type GetMonitoringInput struct {
 	Type       string `json:"type,omitempty" jsonschema:"'system' for system-wide metrics, 'binary' for per-binary metrics. Defaults to 'system' if omitted."`
 	BinaryIDs  []int  `json:"binary_ids,omitempty" jsonschema:"List of binary IDs to filter (only used when type='binary'). Omit to get data for all active binaries."`
 	TopN       int    `json:"top_n,omitempty" jsonschema:"Only return the top N binaries ranked by peak value of the sort_by metric (only used when type='binary'). E.g. top_n=10 with sort_by='cpu' gives the 10 heaviest CPU consumers."`
-	SortBy     string `json:"sort_by,omitempty" jsonschema:"Which resource metric to rank binaries by when using top_n or min_value. One of: 'cpu' (default), 'memory', 'disk', 'gpu'. Only used when type='binary'."`
-	MinValue   int    `json:"min_value,omitempty" jsonschema:"Minimum peak threshold for the sort_by metric (only used when type='binary'). Units depend on sort_by: cpu/gpu=percent (e.g. 5 means 5%%), memory/disk=bytes (e.g. 104857600 means 100 MB). Can be combined with top_n."`
+	SortBy     string `json:"sort_by,omitempty" jsonschema:"Which resource metric to rank binaries by when using top_n or min_value. One of: 'cpu' (default), 'memory', 'disk', 'gpu', 'network'. 'network' ranks by combined rx+tx bytes. Only used when type='binary'."`
+	MinValue   int    `json:"min_value,omitempty" jsonschema:"Minimum peak threshold for the sort_by metric (only used when type='binary'). Units depend on sort_by: cpu/gpu=percent (e.g. 5 means 5%%), memory/disk/network=bytes (e.g. 104857600 means 100 MB). Can be combined with top_n."`
 }
 
-const getMonitoringDesc = `Get time-series resource metrics — system-wide (CPU, memory, disk, GPU, temps) or per-binary with top-N/min-value filtering to find heavy resource consumers.
+const getMonitoringDesc = `Get time-series resource metrics — system-wide (CPU, memory, disk, GPU, network, temps) or per-binary with top-N/min-value filtering to find heavy resource consumers.
 
 Timestamps are Unix epoch milliseconds (UTC). AppControl samples system and per-binary metrics once per second internally.
 
 Two modes controlled by the 'type' parameter:
-- type="system" (default): Returns system-wide metrics per time point — cpu_percent, memory_percent, disk_percent, process count, temperatures, and GPU load. Use this to spot overall performance anomalies.
-- type="binary": Returns per-binary resource usage per time point — cpu_percent, memory_bytes, disk_bytes, process count, and GPU load for each binary active during that interval. Each entry includes the binary's name and path. Use sort_by + top_n + min_value to focus on heavy hitters by any resource type without needing to know binary IDs upfront.
+- type="system" (default): Returns system-wide metrics per time point — cpu_percent, memory_percent, disk_percent, net_rx_bytes, net_tx_bytes, process count, temperatures, and GPU load. Use this to spot overall performance anomalies.
+- type="binary": Returns per-binary resource usage per time point — cpu_percent, memory_bytes, disk_bytes, net_rx_bytes, net_tx_bytes, process count, and GPU load for each binary active during that interval. Each entry includes the binary's name and path. Use sort_by + top_n + min_value to focus on heavy hitters by any resource type without needing to know binary IDs upfront.
+
+NETWORK DATA — read this before drawing conclusions from net_* values:
+
+1. System and per-binary network figures measure DIFFERENT things and are NOT expected to reconcile. The system figure is NIC-level octets, which includes protocol framing and traffic that has no owning process (ARP, ICMP, DHCP, VPN encapsulation, kernel-originated traffic). The per-binary figure is TCP/UDP payload attributed to a process. The system total is therefore normally LARGER than the sum of per-binary values, by construction. The response carries a net_semantics field stating this. Do NOT report the difference as unexplained traffic, a hidden process, or evidence of exfiltration — that gap is expected on every healthy machine.
+
+2. net_app_available tells you whether per-binary network data is TRUSTWORTHY for a given sample. It appears per time point and as a whole-window summary at the response root. When it is false, per-binary net_rx_bytes/net_tx_bytes are UNKNOWN, not zero — the collector was not running for that sample. Never read a zero under net_app_available=false as "this application used no network". The root flag is true only when every returned sample was valid, so a mixed window reports false; use the per-time-point flags to see which samples you can rely on. System net_* values do not depend on this flag and remain valid regardless.
+
+3. Traffic to the machine's own loopback address is excluded from both figures.
+
+4. Short-lived processes that transmit and exit between one-second samples may not be attributed to their binary; their traffic still appears in the system total. Absence of per-binary network activity is therefore weak evidence, not proof.
 
 To understand idle and off periods, use get_stats() which returns off_intervals and idle_intervals. Cross-reference those intervals with monitoring data to discount resource metrics during inactive periods.
 
@@ -476,9 +496,13 @@ func getMonitoring(_ context.Context, _ *mcp.CallToolRequest, input GetMonitorin
 // Tool: get_hardware
 // ---------------------------------------------------------------------------
 
-const getHardwareDesc = `Get CPU, GPU, and temperature sensor info for the monitored system.
+const getHardwareDesc = `Get CPU, GPU, network adapter, and temperature sensor info for the monitored system.
 
-Returns CPU name, GPU names, and whether temperature readings are supported for each. Use this to understand what hardware is present and whether temperature data in get_monitoring results is meaningful.`
+Returns CPU name, GPU names, and whether temperature readings are supported for each. Use this to understand what hardware is present and whether temperature data in get_monitoring results is meaningful.
+
+Also returns network_adapters: each entry has name, type (IANA ifType — 6 = ethernet, 71 = 802.11, 24 = loopback, 53 = virtual/tunnel), receive_link_speed and transmit_link_speed in bits/sec, up, and counted_in_total. Only adapters with counted_in_total=true contribute to the system-wide net_rx_bytes/net_tx_bytes in get_monitoring. Loopback, VPN tunnels, virtual switch ports and similar are deliberately excluded because their traffic is already counted on the physical adapter underneath, so counting both would double it. Use link speed to judge whether an observed transfer rate is near the adapter's capacity.
+
+net_app_available here reflects whether the per-application network collector is running RIGHT NOW. That is a live health signal — it says nothing about whether historical samples in get_monitoring are trustworthy. For that, use the net_app_available fields inside the get_monitoring response itself.`
 
 func getHardware(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	c, err := getClient()
