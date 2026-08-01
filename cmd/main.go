@@ -102,9 +102,10 @@ All tools in this MCP server are **read-only**. You cannot modify rules, block/a
 	`with no owning process; per-binary figures are TCP/UDP payload attributed to a ` +
 	`process. The system total is normally larger than the sum of per-binary values on ` +
 	`every healthy machine. Do not report that gap as unaccounted traffic, a hidden ` +
-	`process, or exfiltration. When net_app_available is false, per-binary network ` +
-	`values are UNKNOWN rather than zero — treat them as missing data, not as evidence ` +
-	`that an application used no network.
+	`process, or exfiltration. Each time point carries its own net_app_available flag; ` +
+	`where it is false, that sample's per-binary network values are UNKNOWN rather than ` +
+	`zero — treat them as missing data, not as evidence that an application used no ` +
+	`network.
 
 ## Important context for the AI assistant
 
@@ -460,7 +461,7 @@ NETWORK DATA — read this before drawing conclusions from net_* values:
 
 1. System and per-binary network figures measure DIFFERENT things and are NOT expected to reconcile. The system figure is NIC-level octets, which includes protocol framing and traffic that has no owning process (ARP, ICMP, DHCP, VPN encapsulation, kernel-originated traffic). The per-binary figure is TCP/UDP payload attributed to a process. The system total is therefore normally LARGER than the sum of per-binary values, by construction. The response carries a net_semantics field stating this. Do NOT report the difference as unexplained traffic, a hidden process, or evidence of exfiltration — that gap is expected on every healthy machine.
 
-2. net_app_available tells you whether per-binary network data is TRUSTWORTHY for a given sample. It appears per time point and as a whole-window summary at the response root. When it is false, per-binary net_rx_bytes/net_tx_bytes are UNKNOWN, not zero — the collector was not running for that sample. Never read a zero under net_app_available=false as "this application used no network". The root flag is true only when every returned sample was valid, so a mixed window reports false; use the per-time-point flags to see which samples you can rely on. System net_* values do not depend on this flag and remain valid regardless.
+2. Each time point carries net_app_available, telling you whether per-binary network data is TRUSTWORTHY for that specific sample. When it is false, that point's per-binary net_rx_bytes/net_tx_bytes are UNKNOWN, not zero — the collector was not running for that second. Never read a zero under net_app_available=false as "this application used no network". Availability is per sample and a window can be partly valid, so check the flag on the points you are actually reasoning about rather than assuming a whole range is uniform. A handful of false points is normal: the sample at each service start is unmeasured by definition. System net_* values do not depend on this flag and remain valid regardless.
 
 3. Traffic to the machine's own loopback address is excluded from both figures.
 
@@ -502,7 +503,7 @@ Returns CPU name, GPU names, and whether temperature readings are supported for 
 
 Also returns network_adapters: each entry has name, type (IANA ifType — 6 = ethernet, 71 = 802.11, 24 = loopback, 53 = virtual/tunnel), receive_link_speed and transmit_link_speed in bits/sec, up, and counted_in_total. Only adapters with counted_in_total=true contribute to the system-wide net_rx_bytes/net_tx_bytes in get_monitoring. Loopback, VPN tunnels, virtual switch ports and similar are deliberately excluded because their traffic is already counted on the physical adapter underneath, so counting both would double it. Use link speed to judge whether an observed transfer rate is near the adapter's capacity.
 
-net_app_available here reflects whether the per-application network collector is running RIGHT NOW. That is a live health signal — it says nothing about whether historical samples in get_monitoring are trustworthy. For that, use the net_app_available fields inside the get_monitoring response itself.`
+net_app_available here reflects whether the per-application network collector is running RIGHT NOW. That is a live health signal — it says nothing about whether historical samples in get_monitoring are trustworthy. For that, use the per-time-point net_app_available flag inside the get_monitoring response, which is recorded per sample. These are two different questions and the same field name answers only the one asked of this endpoint.`
 
 func getHardware(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	c, err := getClient()
