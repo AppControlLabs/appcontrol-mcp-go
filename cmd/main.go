@@ -28,8 +28,19 @@ AppControl is an advanced monitoring tool with history and behavioral analysis `
 	`Multiple binary records can share the same filename_hash when the file at a given ` +
 	`path changed over time (e.g., software updates). When a new version appears, a new ` +
 	`record is created and older records gain a NoLongerSeen timestamp in last_access_times. ` +
-	`Binaries may also track hardware access (Webcam, Mic, Location) in last_access_times ` +
-	`and activities fields.
+	`Binaries may also track resource access (Webcam, Mic, Location, Network) in ` +
+	`last_access_times, and currently-ongoing hardware access in the activities field.
+
+**A binary record is one version, not one application.** A replacement record starts ` +
+	`with only its own FirstTimeSeen or LastTimeHashChanged marker -- it does NOT inherit ` +
+	`the resource-access timestamps (Webcam, Mic, Location, Network) recorded by the ` +
+	`versions it replaced. Those stay on the older, retired records. So a single record's ` +
+	`last_access_times describes only that one build. To answer anything about "this ` +
+	`application" -- has it ever used the mic, when did it last touch the network -- group ` +
+	`records by filename_hash AND filename, then merge across the group as described in ` +
+	`list_binaries. Reading one record in isolation systematically under-reports any app ` +
+	`that has ever been updated, and an app that updates often can look like it has never ` +
+	`used a resource at all.
 
 **Publishers**: Code-signing certificate identities. A publisher like "Microsoft ` +
 	`Corporation" may sign thousands of binaries. Quarantine rules can target an entire ` +
@@ -169,7 +180,17 @@ Returns binaries with metadata: name, filename, filename_hash, path, SHA256 hash
 
 filename_hash groups binaries by file path. Multiple binary records can share the same filename_hash when the file at that path changed over time (e.g., updates). When a new version appears, a new record is created and older records gain a NoLongerSeen timestamp in last_access_times.
 
-last_access_times is an object mapping access types (Webcam, Mic, Location, FirstTimeSeen, NoLongerSeen, LastTimeHashChanged) to epoch-ms timestamps. activities is an array of current hardware access: Webcam, Mic, Location.
+GROUPING RECORDS INTO APPLICATIONS. Records are per-version. Group by filename_hash, then confirm filename matches within the group — filename_hash is a hash of the path, so unrelated paths can collide. The current version is the record in the group with no NoLongerSeen; the rest are retired history. There is no filename_hash query filter: to fetch a whole group, pass the full path as path_contains, or group client-side from a broader listing.
+
+MERGING last_access_times ACROSS A GROUP. A replacement record does NOT inherit the old record's timestamps, so per-record values are incomplete for the application. Merge like this:
+- Webcam, Mic, Location, Network — take the MAX across the group. This is the real answer to "when did this app last use X". Taking it from the current record alone will read as "never" for any app updated since it last used that resource.
+- FirstTimeSeen — take the MIN across the group: when the application first appeared at this path. The current record's own FirstTimeSeen is just when that build appeared.
+- LastTimeHashChanged — take the MAX: when the application last changed on disk.
+- NoLongerSeen — do NOT merge. It is per-record and marks a retired version. The application is still installed if ANY record in the group lacks it.
+
+last_access_times is an object mapping access types (Webcam, Mic, Location, Network, FirstTimeSeen, NoLongerSeen, LastTimeHashChanged, McpConnection) to epoch-ms timestamps. activities is an array of currently-ongoing hardware access: Webcam, Mic, Location, McpClient.
+
+Network is the last time the binary sent or received bytes, and is deliberately coarse: it is only refreshed once per 5 minutes of continuous activity, so it can lag real traffic by up to 5 minutes and must not be read as a precise last-packet time. Its absence means the binary has not been seen using the network since network monitoring began. There is no Network entry in activities — use get_monitoring_data to see whether an app is transferring right now.
 
 Tip: Unsigned binaries in user-writable paths are highest risk. Binaries with no publisher and a path under Downloads, Temp, or AppData warrant scrutiny.`
 
