@@ -29,7 +29,7 @@ jobs:
       shell: pwsh
       run: |
         $content = Get-Content cmd/winres/winres.json -Raw
-        $content = $content -replace '1\.0\.0\.0', '${{ steps.version.outputs.WINRES_VERSION }}'
+        $content = $content -replace '\d+\.\d+\.\d+\.\d+', '${{ steps.version.outputs.WINRES_VERSION }}'
         Set-Content cmd/winres/winres.json $content
 
     - name: Build
