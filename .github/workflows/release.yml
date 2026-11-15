@@ -35,8 +35,8 @@ jobs:
     - name: Build
       shell: pwsh
       run: |
-        cd ./cmd/
         go mod tidy
+        cd ./cmd/
         go-winres make
         del rsrc_windows_386.syso
         go build -ldflags "-s -w" -o ../appcontrol-mcp.exe .
