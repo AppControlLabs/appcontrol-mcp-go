@@ -23,6 +23,8 @@
 
 There are two ways to install the server: as an **MCPB package** (recommended for Claude Desktop) or as a **standalone executable**.
 
+Both run the server on the PC being monitored. The same tools are also available in **cloud mode**: point any remote-capable MCP client at `https://portal.appcontrol.com/mcp` with a bearer token created on the portal's MCP page, and every machine on your AppControl account that has cloud MCP switched on answers through its own AppControl service, read-only as here. Nothing needs installing for that.
+
 ### Option A — MCPB Package (Claude Desktop)
 
 1. Download `appcontrol.mcpb` from the [latest release](https://github.com/AppControlLabs/appcontrol-mcp-go/releases/latest).
@@ -175,27 +177,31 @@ Once connected, try asking your AI assistant:
 
 ## Available Tools
 
-The MCP server exposes 9 read-only tools:
+The MCP server exposes 10 read-only tools:
 
 | Tool | Description |
 |------|-------------|
-| `get_stats` | Get service stats, current timestamp, and uptime/idle intervals showing when the PC was on, off, or idle. |
+| `get_stats` | Get service stats, current timestamp, and uptime/paused/idle intervals showing when the PC was on, off, paused, or idle. |
 | `list_binaries` | List tracked binaries with filters — unsigned-only, currently-running, first-seen-after date, path substring, or publisher ID. |
-| `get_binary` | Get detailed info for one or more binaries by ID (batch with comma-separated IDs) — path, hash, signature, publisher, first-seen time, and running status. |
-| `list_processes` | List currently running processes with binary ID, name, path, PID, and start time. Filterable by fields. |
-| `list_publishers` | List code-signing publishers (certificate identities) — name, country, and linked binary/rule counts. |
-| `list_rules` | List quarantine rules — blocked binaries and publishers with rule type and creation time. |
+| `get_binary` | Get detailed info for one or more binaries by ID (batch with comma-separated IDs) — path, hashes, publisher, file timestamps, last_access_times (first-seen, resource access), and running process count. |
+| `list_processes` | List currently running processes with binary ID, name, username, PID, and start time. Filterable by fields. |
+| `list_publishers` | List code-signing publishers (certificate identities) — publisher ID, name, country, and location. |
+| `list_rules` | List quarantine rules — blocked binaries and publishers with their scope. |
 | `query_history` | Query security event history — binary first-seen events, quarantine blocks, alerts, and process starts. Filterable by event type, time range, and binary ID. |
-| `get_monitoring` | Get time-series resource metrics — system-wide (CPU, memory, disk, GPU, temps) or per-binary with top-N/min-value filtering to find heavy resource consumers. |
-| `get_hardware` | Get CPU, GPU, and temperature sensor info for the monitored system. |
+| `get_monitoring` | Get time-series resource metrics — system-wide (CPU, memory, disk, GPU, network, temperatures, battery) or per-binary (with an on-battery power estimate) with top-N/min-value filtering to find heavy resource consumers. |
+| `get_hardware` | Get CPU, GPU, disk, battery, network adapter, and temperature sensor info for the monitored system. |
+| `list_services` | List Windows services from the system-wide catalog — running AND stopped. Filterable by name/description, running state, driver-only, and start type. |
 
 All tools are **read-only**. The MCP server cannot modify rules, block/allow binaries, or change any service configuration.
 
 
 ## Building from Source
 
+Requires Go 1.26 or later.
+
 ```bash
-go build -ldflags "-s -w" -o appcontrol-mcp.exe .
+go build -ldflags "-s -w" -o appcontrol-mcp.exe ./cmd
+go test ./...
 ```
 
 ## License

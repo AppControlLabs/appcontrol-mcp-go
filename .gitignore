@@ -1,0 +1,4 @@
+# Build output
+*.exe
+*.syso
+*.mcpb

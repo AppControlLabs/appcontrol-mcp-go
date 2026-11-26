@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -124,17 +124,17 @@ func (c *Client) refreshCredentials() bool {
 
 // Get makes an authenticated GET request and returns the raw response body.
 // Automatically refreshes credentials and retries on 401.
-func (c *Client) Get(path string, params url.Values) (string, error) {
+func (c *Client) Get(ctx context.Context, path string, params url.Values) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	body, status, err := c.doGet(path, params)
+	body, status, err := c.doGet(ctx, path, params)
 	if err != nil {
 		return "", err
 	}
 
 	if status == http.StatusUnauthorized && c.refreshCredentials() {
-		body, status, err = c.doGet(path, params)
+		body, status, err = c.doGet(ctx, path, params)
 		if err != nil {
 			return "", err
 		}
@@ -150,13 +150,13 @@ func (c *Client) Get(path string, params url.Values) (string, error) {
 	return body, nil
 }
 
-func (c *Client) doGet(path string, params url.Values) (string, int, error) {
+func (c *Client) doGet(ctx context.Context, path string, params url.Values) (string, int, error) {
 	u := c.baseURL + path
 	if len(params) > 0 {
 		u += "?" + params.Encode()
 	}
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return "", 0, err
 	}
@@ -173,41 +173,4 @@ func (c *Client) doGet(path string, params url.Values) (string, int, error) {
 		return "", resp.StatusCode, err
 	}
 	return string(b), resp.StatusCode, nil
-}
-
-// Parameter helpers for building url.Values
-
-func setStr(params url.Values, key, val string) {
-	if val != "" {
-		params.Set(key, val)
-	}
-}
-
-func setInt(params url.Values, key string, val int) {
-	if val != 0 {
-		params.Set(key, strconv.Itoa(val))
-	}
-}
-
-func setInt64(params url.Values, key string, val int64) {
-	if val != 0 {
-		params.Set(key, strconv.FormatInt(val, 10))
-	}
-}
-
-func setBool(params url.Values, key string, val bool) {
-	if val {
-		params.Set(key, "1")
-	}
-}
-
-func setIntSlice(params url.Values, key string, vals []int) {
-	if len(vals) == 0 {
-		return
-	}
-	parts := make([]string, len(vals))
-	for i, v := range vals {
-		parts[i] = strconv.Itoa(v)
-	}
-	params.Set(key, strings.Join(parts, ","))
 }

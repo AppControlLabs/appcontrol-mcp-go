@@ -29,14 +29,14 @@ jobs:
       shell: pwsh
       run: |
         $content = Get-Content cmd/winres/winres.json -Raw
-        $content = $content -replace '1\.0\.0\.0', '${{ steps.version.outputs.WINRES_VERSION }}'
+        $content = $content -replace '\d+\.\d+\.\d+\.\d+', '${{ steps.version.outputs.WINRES_VERSION }}'
         Set-Content cmd/winres/winres.json $content
 
     - name: Build
       shell: pwsh
       run: |
-        cd ./cmd/
         go mod tidy
+        cd ./cmd/
         go-winres make
         del rsrc_windows_386.syso
         go build -ldflags "-s -w" -o ../appcontrol-mcp.exe .
